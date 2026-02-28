@@ -185,9 +185,9 @@ function createProductionContainer(): AppContainer {
   const consentLog = new SupabaseConsentLogAdapter(supabase);
   const aiQualityLog = new SupabaseAIQualityLogAdapter(supabase);
 
-  const nanoBananaApiKey = process.env['NANO_BANANA_API_KEY'] ?? '';
-  const nanoBananaBaseUrl = process.env['NANO_BANANA_BASE_URL'] ?? 'https://api.nanobanana.ai';
-  const aiProcessor = new NanaBananaAdapter({ apiKey: nanoBananaApiKey, baseUrl: nanoBananaBaseUrl });
+  const nanaBananaApiKey = process.env['NANO_BANANA_API_KEY'] ?? '';
+  const nanaBananaBaseUrl = process.env['NANO_BANANA_BASE_URL'] ?? 'https://api.nanobanana.ai';
+  const aiProcessor = new NanaBananaAdapter({ apiKey: nanaBananaApiKey, baseUrl: nanaBananaBaseUrl });
 
   // MockWeatherService as placeholder until a real weather service adapter is built.
   const weatherService = buildDefaultMockWeatherService();

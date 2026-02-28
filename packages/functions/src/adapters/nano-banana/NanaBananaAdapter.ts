@@ -91,9 +91,7 @@ export class NanaBananaAdapter implements AIProcessorPort {
 
       try {
         const result = await this.callApi(imageBuffer);
-        // Success — reset consecutive failure counter
-        this.circuitBreaker.consecutiveFailures = 0;
-        this.circuitBreaker.openedAt = null;
+        this.resetCircuitBreaker();
         return result;
       } catch (err) {
         lastError = err as Error;
@@ -129,6 +127,10 @@ export class NanaBananaAdapter implements AIProcessorPort {
     }
 
     // Cooldown elapsed — reset
+    this.resetCircuitBreaker();
+  }
+
+  private resetCircuitBreaker(): void {
     this.circuitBreaker.consecutiveFailures = 0;
     this.circuitBreaker.openedAt = null;
   }

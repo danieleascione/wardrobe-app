@@ -6,15 +6,12 @@ import type { OutfitRepositoryPort } from '../ports/outbound/OutfitRepositoryPor
 import type { WearEventRepositoryPort } from '../ports/outbound/WearEventRepositoryPort.js';
 import type { WeatherServicePort } from '../ports/outbound/WeatherServicePort.js';
 
-// BR-04 rotation windows
-const ROTATION_WINDOW_LARGE = 7; // days when item_count >= 15
-const ROTATION_WINDOW_SMALL = 3; // days when item_count < 15
+// BR-04: rotation windows (days) — avoid repeating combinations seen within this window
+const ROTATION_WINDOW_DAYS_LARGE_WARDROBE = 7; // wardrobe with >= 15 items
+const ROTATION_WINDOW_DAYS_SMALL_WARDROBE = 3; // wardrobe with < 15 items
 const LARGE_WARDROBE_THRESHOLD = 15;
 
-// BR-01 minimum item count for outfit suggestions
-const MIN_ITEMS_FOR_SUGGESTION = 5;
-
-// BR-03 minimum items per outfit
+// BR-03: minimum items required to form a valid outfit
 const MIN_OUTFIT_ITEMS = 3;
 
 function generateId(): string {
@@ -83,11 +80,11 @@ export class SuggestOutfitUseCase {
       return null;
     }
 
-    // BR-04: determine rotation window
+    // BR-04: determine rotation window based on wardrobe size
     const windowDays =
       wardrobe.item_count >= LARGE_WARDROBE_THRESHOLD
-        ? ROTATION_WINDOW_LARGE
-        : ROTATION_WINDOW_SMALL;
+        ? ROTATION_WINDOW_DAYS_LARGE_WARDROBE
+        : ROTATION_WINDOW_DAYS_SMALL_WARDROBE;
 
     const windowStart = subtractDays(date, windowDays);
     const recentOutfits = await this.outfitRepo.findByDateWindow(userId, windowStart, date);

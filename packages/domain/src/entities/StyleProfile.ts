@@ -1,11 +1,10 @@
-// BR-09: Default StyleProfile on calibration skip: classic / work+casual / neutral
-
 export type StyleArchetype = 'classic' | 'minimalist' | 'bold' | 'sporty' | 'romantic';
 export type StylePalette = 'neutral' | 'vibrant' | 'monochrome' | 'earthy';
 
-const DEFAULT_ARCHETYPE: StyleArchetype = 'classic';
-const DEFAULT_OCCASION_PRIORITIES = Object.freeze(['work', 'casual']);
-const DEFAULT_PALETTE: StylePalette = 'neutral';
+// BR-09: Default calibration values when user skips style setup
+export const DEFAULT_STYLE_ARCHETYPE: StyleArchetype = 'classic';
+export const DEFAULT_STYLE_OCCASION_PRIORITIES: ReadonlyArray<string> = Object.freeze(['work', 'casual']);
+export const DEFAULT_STYLE_PALETTE: StylePalette = 'neutral';
 
 export interface EffectivePreferences {
   readonly archetype: StyleArchetype;
@@ -49,13 +48,13 @@ export class StyleProfile {
     Object.freeze(this);
   }
 
-  // BR-09: Return defaults when calibration has not been completed
+  // BR-09: return defaults when calibration has not been completed
   effectivePreferences(): EffectivePreferences {
     if (!this.calibration_completed) {
       return {
-        archetype: DEFAULT_ARCHETYPE,
-        occasion_priorities: DEFAULT_OCCASION_PRIORITIES,
-        palette: DEFAULT_PALETTE,
+        archetype: DEFAULT_STYLE_ARCHETYPE,
+        occasion_priorities: DEFAULT_STYLE_OCCASION_PRIORITIES,
+        palette: DEFAULT_STYLE_PALETTE,
       };
     }
     return {

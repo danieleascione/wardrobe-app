@@ -1,8 +1,5 @@
 import type { WeatherContext } from '../value-objects/index.js';
 
-// BR-03: Outfit must contain >= 3 Items
-// Outfit is immutable after creation — no setters on item_ids
-
 export type OutfitStatus = 'active' | 'invalidated';
 
 export interface OutfitProps {
@@ -29,7 +26,7 @@ export class Outfit {
   readonly status: OutfitStatus;
 
   constructor(props: OutfitProps) {
-    // BR-03: enforce minimum item count
+    // BR-03
     if (props.item_ids.length < 3) {
       throw new Error('Outfit must contain at least 3 items');
     }

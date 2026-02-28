@@ -108,7 +108,7 @@ export class DigitizeItemUseCase {
    * so that AI model improvement pipelines can learn from user feedback.
    */
   async correctMetadata(
-    _userId: string,
+    userId: string,
     itemId: string,
     correctedCategory: string,
     correctedSubcategory: string,
@@ -163,7 +163,7 @@ export class DigitizeItemUseCase {
    * Delete an item from the wardrobe.
    * item_count is decremented by a DB trigger — no manual decrement here.
    */
-  async deleteItem(_userId: string, itemId: string): Promise<void> {
+  async deleteItem(userId: string, itemId: string): Promise<void> {
     await this.itemRepo.delete(itemId);
   }
 

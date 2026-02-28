@@ -1,11 +1,11 @@
-import { StyleProfile } from '../entities/StyleProfile.js';
+import {
+  StyleProfile,
+  DEFAULT_STYLE_ARCHETYPE,
+  DEFAULT_STYLE_OCCASION_PRIORITIES,
+  DEFAULT_STYLE_PALETTE,
+} from '../entities/StyleProfile.js';
 import type { StyleArchetype, StylePalette } from '../entities/StyleProfile.js';
 import type { StyleProfileRepositoryPort } from '../ports/outbound/StyleProfileRepositoryPort.js';
-
-// BR-09: Default profile values when calibration is skipped
-const BR09_ARCHETYPE: StyleArchetype = 'classic';
-const BR09_OCCASIONS: ReadonlyArray<string> = ['work', 'casual'];
-const BR09_PALETTE: StylePalette = 'neutral';
 
 function generateId(): string {
   return `sp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -23,9 +23,9 @@ export class CalibrateStyleUseCase {
     const profile = new StyleProfile({
       style_profile_id: generateId(),
       user_id: userId,
-      archetype: BR09_ARCHETYPE,
-      occasion_priorities: [...BR09_OCCASIONS],
-      palette: BR09_PALETTE,
+      archetype: DEFAULT_STYLE_ARCHETYPE,
+      occasion_priorities: [...DEFAULT_STYLE_OCCASION_PRIORITIES],
+      palette: DEFAULT_STYLE_PALETTE,
       calibration_completed: false,
       calibration_version: 0,
       created_at: now,

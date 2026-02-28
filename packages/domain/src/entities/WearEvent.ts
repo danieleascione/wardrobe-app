@@ -1,6 +1,3 @@
-// BR-05: WearEvent created only on explicit user accept — not on view
-// WearEvent requires an explicit outfit reference and a final items list
-
 export interface WearEventProps {
   readonly wear_event_id: string;
   readonly user_id: string;
@@ -19,12 +16,11 @@ export class WearEvent {
   readonly created_at: Date;
 
   constructor(props: WearEventProps) {
-    // BR-05: WearEvent must reference the outfit that was accepted
+    // BR-05
     if (!props.outfit_id) {
       throw new Error('WearEvent requires an explicit outfit reference');
     }
 
-    // WearEvent must record at least one item worn
     if (props.items_worn.length === 0) {
       throw new Error('WearEvent requires at least one item worn');
     }
