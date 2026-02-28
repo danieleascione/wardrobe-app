@@ -1,0 +1,361 @@
+journey:
+  name: "Wardrobe Digitization to First Outfit Suggestion"
+  goal: "Sofia goes from empty app to seeing her first AI-curated outfit from her own clothes"
+  persona: "Sofia Marchetti — 28, marketing professional, Milan. 90+ garments, wears 20% regularly. Previous wardrobe apps abandoned due to setup friction."
+  trigger: "Sunday evening, preparing for the work week ahead"
+  jobs_mapped:
+    - id: JS-01
+      name: "Wardrobe Visibility"
+    - id: JS-04
+      name: "Daily Outfit Intelligence"
+
+  emotional_arc:
+    start: "Curious and hopeful — she wants this to work"
+    middle: "Mild anxiety about effort → relief as AI handles classification → growing engagement"
+    peak: "Delight at first outfit suggestion — the 'aha' moment validating adoption"
+    end: "Confident and habitual — daily outfit check becomes morning ritual"
+    arc_pattern: "Confidence Building (Curious → Focused → Delighted → Habitual)"
+
+steps:
+  - id: 1
+    name: "Style Onboarding"
+    trigger: "First app launch"
+    user_action: "Answers 3 style calibration questions"
+
+    shared_artifacts_produced:
+      - name: style_profile
+        schema:
+          style_archetype: "minimalist | classic | bold | relaxed"
+          occasion_priorities: "[work, casual, sport, events]"
+          color_palette: "neutral | earthy | monochrome | vibrant"
+        single_source_of_truth: "users/{user_id}/style_profile"
+        consumed_by:
+          - "outfit suggestion engine (Step 5, 6)"
+          - "onboarding personalization messages (Step 4)"
+          - "smart shopping recommendations (Phase 3)"
+
+    emotional_state:
+      entry: "Curious — just downloaded, motivated by problem"
+      exit: "Engaged — 3 questions felt light, reward (first outfit) has been promised"
+
+    integration_checkpoint: |
+      style_profile must be written before proceeding to item digitization.
+      Outfit engine requires at minimum: style_archetype + occasion_priorities.
+
+    gherkin: |
+      Scenario: Sofia completes style calibration
+        Given Sofia has opened PocketWardrobe for the first time
+        And she has not previously created a style profile
+        When she selects "Classic" as her style archetype
+        And she selects "Work" and "Casual" as her occasion priorities
+        And she selects "Neutral palette" as her color preference
+        Then her style_profile is saved
+        And she sees the camera interface to add her first item
+        And the progress indicator shows "0/5 items — add 5 to see your first outfit"
+
+  - id: 2
+    name: "First Item Photograph"
+    trigger: "User taps camera icon or is routed from onboarding"
+    user_action: "Photographs a garment (flat lay or hanging)"
+
+    shared_artifacts_produced:
+      - name: raw_photo
+        schema:
+          image_data: "binary"
+          capture_timestamp: "ISO 8601"
+          lighting_quality: "auto-assessed"
+        single_source_of_truth: "items/staging/{temp_id}"
+        consumed_by:
+          - "AI background removal service (Step 3)"
+          - "AI classification service (Step 3)"
+
+    emotional_state:
+      entry: "Mildly anxious — 'how long will this take?'"
+      exit: "Committed — photo taken, process started"
+
+    integration_checkpoint: |
+      Photo quality assessment must complete before AI processing begins.
+      If lighting_quality < threshold: surface retake prompt before submitting.
+
+    gherkin: |
+      Scenario: Sofia photographs her camel trench coat
+        Given Sofia is on the item capture screen
+        And the progress indicator shows "0/5 — add 5 to unlock your first outfit"
+        When she points her camera at her camel coat laid flat
+        And she taps the Capture button
+        Then the photo is submitted for AI processing
+        And she sees a processing indicator with step-by-step progress
+
+      Scenario: Sofia's photo is too dark for processing
+        Given Sofia is photographing her coat in low light
+        When she taps Capture
+        Then the app assesses lighting quality as insufficient
+        And displays "This photo looks a bit dark. Retake for better results?"
+        And offers [Retake] and [Use anyway] options
+        And does not proceed to AI processing until her choice is made
+
+  - id: 3
+    name: "AI Processing & Metadata Review"
+    trigger: "Photo submitted successfully"
+    user_action: "Reviews and confirms or adjusts AI-extracted metadata"
+
+    shared_artifacts_produced:
+      - name: item_record
+        schema:
+          item_id: "UUID"
+          photo_url: "CDN URL to background-removed image"
+          category: "outerwear | tops | bottoms | footwear | accessories"
+          subcategory: "coat | jacket | blazer | ..."
+          color_primary: "camel | white | navy | ..."
+          color_secondary: "optional"
+          fabric_estimate: "wool | cotton | synthetic | ..."
+          season: "[spring, summer, autumn, winter]"
+          occasion_tags: "[work, casual, sport, events]"
+          name: "user-editable display name"
+          user_id: "FK"
+          created_at: "ISO 8601"
+          worn_count: 0
+          last_worn_at: null
+        single_source_of_truth: "items/{item_id}"
+        consumed_by:
+          - "wardrobe grid display (Step 4)"
+          - "outfit suggestion engine (Steps 5, 6)"
+          - "wardrobe statistics (Step 6)"
+          - "resale listing generator (Phase 3)"
+          - "gap detection engine (Phase 3)"
+
+    emotional_state:
+      entry: "Tense — waiting, uncertain about AI quality"
+      exit: "Impressed then relieved — AI handled it correctly, minimal correction needed"
+
+    integration_checkpoint: |
+      item_record must be written to wardrobe collection before user proceeds.
+      photo_url must point to background-removed version, not raw photo.
+      item_id must be unique; collision check required.
+
+    gherkin: |
+      Scenario: AI successfully classifies camel trench coat
+        Given Sofia's photo has been submitted for AI processing
+        When processing completes within 5 seconds
+        Then Sofia sees the background-removed image of her coat
+        And the detected color is "Camel / Warm tan"
+        And the category is "Outerwear → Coat"
+        And season is pre-selected as "Spring/Autumn, Winter"
+        And occasion tags include "Work" and "Casual"
+        And she can edit any field before confirming
+
+      Scenario: AI fails to classify item category
+        Given Sofia's photo shows an ambiguous garment
+        When AI processing completes but category confidence is below threshold
+        Then the app displays "We couldn't identify this item automatically"
+        And presents a category picker with top-level categories
+        And Sofia selects the correct category manually
+        And the item is saved with her manual classification
+
+      Scenario: Sofia corrects an AI-detected color
+        Given AI has detected the color as "Brown"
+        And the actual color is "Camel / Warm tan"
+        When Sofia taps the color field and selects "Camel"
+        Then the item_record is saved with color = "Camel"
+        And the correction is logged to improve future AI accuracy
+
+  - id: 4
+    name: "Wardrobe Growing (Items 2-5)"
+    trigger: "Item 1 confirmed, user continues adding"
+    user_action: "Repeats photography flow for items 2-5"
+
+    shared_artifacts_consumed:
+      - name: wardrobe
+        description: "Growing collection of item_records for this user"
+        single_source_of_truth: "wardrobes/{user_id}/items"
+      - name: style_profile
+        description: "Used to personalize encouragement messages"
+
+    shared_artifacts_produced:
+      - name: wardrobe
+        update: "Each confirmed item_record appended to collection"
+
+    emotional_state:
+      entry: "Engaged — flow is established, each item feels faster"
+      exit: "Anticipatory — 4 items done, one more until first outfit"
+
+    integration_checkpoint: |
+      wardrobe.item_count must be tracked in real time.
+      At item_count >= 5: trigger outfit generation for Step 5.
+      wardrobe.item_count is the shared artifact driving the progress bar display.
+
+    gherkin: |
+      Scenario: Sofia adds her 4th item and sees progress
+        Given Sofia has added 3 items to her wardrobe
+        When she adds a 4th item (white silk blouse)
+        Then the progress bar shows 4/5
+        And the app displays "Sofia, we're learning your style as you add more items"
+        And the [+ Add another item] button is clearly visible
+
+      Scenario: Sofia reaches 5 items and transitions to outfit suggestion
+        Given Sofia has added 4 items to her wardrobe
+        When she confirms her 5th item (dark slim jeans)
+        Then the progress bar completes with a celebration animation
+        And the app transitions to the first outfit suggestion screen
+        And the transition animation shows items "composing" into an outfit
+
+  - id: 5
+    name: "First Outfit Suggestion — The Aha Moment"
+    trigger: "wardrobe.item_count >= 5"
+    user_action: "Views and responds to first AI-curated outfit"
+
+    shared_artifacts_consumed:
+      - name: wardrobe
+        description: "Full collection of item_records"
+      - name: style_profile
+        description: "occasion_priorities, color_palette, style_archetype"
+      - name: weather_context
+        schema:
+          location: "Milan, IT"
+          temperature_celsius: 9
+          condition: "partly cloudy"
+          date: "2026-03-02"
+        single_source_of_truth: "weather-service/{date}/{location}"
+
+    shared_artifacts_produced:
+      - name: outfit_suggestion
+        schema:
+          suggestion_id: "UUID"
+          item_ids: "[item_id_1, item_id_2, item_id_3, item_id_4]"
+          occasion: "work"
+          weather_context: "reference to weather_context"
+          reasoning: "human-readable explanation of why this works"
+          date_suggested: "ISO 8601"
+          user_accepted: null
+          user_rejected: null
+        single_source_of_truth: "outfit-suggestions/{suggestion_id}"
+        consumed_by:
+          - "daily outfit card (Step 6)"
+          - "outfit history (rotation engine)"
+          - "worn_count updates on item_records"
+
+    emotional_state:
+      entry: "Anticipatory — built up over 5 items"
+      exit: "DELIGHTED — the app just showed something genuinely useful"
+      note: "This is the emotional peak of the entire journey. Design as a reveal moment."
+
+    integration_checkpoint: |
+      Outfit composition algorithm must select items only from wardrobe/{user_id}/items.
+      Weather API call must complete before outfit card is rendered.
+      If weather API fails: render outfit without weather context, show "weather unavailable" gracefully.
+      outfit_suggestion must contain >= 3 items (top + bottom + outer or footwear) to be considered complete.
+
+    gherkin: |
+      Scenario: Sofia sees her first complete outfit suggestion
+        Given Sofia has added 5 items to her wardrobe
+        And her style_profile shows "Classic" style and "Work" as primary occasion
+        And tomorrow's weather in Milan is 9°C, partly cloudy
+        When the app generates her first outfit
+        Then Sofia sees a full-screen outfit visualization
+        And the outfit includes items from her wardrobe (camel coat, white top, dark jeans)
+        And the card displays "Monday's Outfit" with weather context "Milan, 9°C"
+        And a "Why this works" explanation is shown
+        And she can accept, request an alternative, or share the outfit
+
+      Scenario: Sofia requests an alternative outfit
+        Given Sofia sees her first outfit suggestion
+        When she taps "Try another"
+        Then the app shows a different combination of her wardrobe items
+        And the new combination respects her style_profile occasion priorities
+        And the previous suggestion is logged as "not selected"
+
+      Scenario: Weather API is unavailable during outfit suggestion
+        Given Sofia has 5 items in her wardrobe
+        And the weather API returns a timeout error
+        When the outfit is generated
+        Then the outfit suggestion is shown without weather context
+        And the card displays "Best for: Work" without weather information
+        And a subtle note reads "Weather info unavailable"
+
+  - id: 6
+    name: "Daily Return — Outfit Card"
+    trigger: "App opened on a new day, or daily notification tapped"
+    user_action: "Views daily outfit, accepts or swaps items"
+
+    shared_artifacts_consumed:
+      - name: wardrobe
+        description: "Full wardrobe, needed for swap/alternative"
+      - name: outfit_history
+        description: "Past accepted outfits, used to prevent repetition"
+        single_source_of_truth: "outfit-suggestions/{user_id}/history"
+      - name: weather_context
+        description: "Current day weather"
+      - name: style_profile
+        description: "Occasion for the day"
+
+    shared_artifacts_produced:
+      - name: wear_event
+        schema:
+          event_id: "UUID"
+          user_id: "FK"
+          outfit_id: "FK"
+          date: "ISO 8601"
+          items_worn: "[item_ids]"
+        single_source_of_truth: "wear-events/{event_id}"
+        consumed_by:
+          - "wardrobe stats (worn_count per item)"
+          - "rotation engine (avoid repeats)"
+          - "unworn items tracker (future resale prompt)"
+
+    emotional_state:
+      entry: "Habitual — checking in, part of morning routine"
+      exit: "Confident — decision made, dressed with intention"
+
+    integration_checkpoint: |
+      outfit_history must be consulted to avoid repeating exact item combinations.
+      wardrobe_stats (worn_count per item) must update when wear_event is created.
+      wardrobe_stats.unworn_items is derived by filtering items where worn_count = 0 in past 30 days.
+
+    gherkin: |
+      Scenario: Sofia checks her daily outfit card
+        Given Sofia has had PocketWardrobe for 3 days
+        And she has 12 items in her wardrobe
+        When she opens the app on Tuesday morning
+        Then she sees "Good morning, Sofia" with Milan's weather
+        And a complete outfit different from Monday's suggestion
+        And the occasion is set to "Work" based on her style_profile
+        And she can accept, swap one item, or see all alternatives
+
+      Scenario: Sofia swaps one item in her outfit
+        Given Sofia sees her Tuesday outfit suggestion
+        And she wants to replace the suggested shoes with ankle boots
+        When she taps on the shoe item in the outfit
+        Then she sees alternative footwear items from her wardrobe
+        And she selects her ankle boots
+        Then the outfit updates to show ankle boots in the combination
+        And the updated outfit can be saved
+
+      Scenario: Sofia sees her unworn items
+        Given Sofia has 23 items in her wardrobe
+        And 14 items have not been worn in the past 30 days
+        When she taps "See what you haven't worn"
+        Then she sees a grid of her 14 unworn items
+        And each item shows how many days since last worn
+        And each item can be tapped to see what outfits it could create
+
+integration_validation:
+  shared_artifact_consistency:
+    - artifact: style_profile
+      must_match_across_steps: [1, 4, 5, 6]
+      failure_message: "Outfit suggestions using wrong style preferences — style_profile not propagated correctly"
+
+    - artifact: item_record.photo_url
+      must_match_across_steps: [3, 4, 5, 6]
+      failure_message: "Outfit card showing raw photo instead of background-removed version"
+
+    - artifact: wardrobe.item_count
+      must_match_across_steps: [2, 3, 4, 5, 6]
+      failure_message: "Progress bar out of sync with actual item count — item_count not updated after save"
+
+    - artifact: weather_context.date
+      must_match_across_steps: [5, 6]
+      failure_message: "Outfit suggestion using stale weather data — must fetch fresh context per day"
+
+    - artifact: outfit_suggestion.item_ids
+      must_reference_valid: "wardrobe/{user_id}/items"
+      failure_message: "Outfit includes item not in user's wardrobe — orphaned reference"
