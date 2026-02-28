@@ -18,15 +18,15 @@ Feature: User digitizes wardrobe and receives first outfit suggestion
     And she confirms her style calibration
     Then her style profile is saved with archetype "Classic", occasions "Work and Casual", and palette "Neutral"
     And she is shown the item capture screen with a progress indicator reading "0 of 5 items"
-    When she photographs and confirms her camel trench coat
+    When she photographs and confirms her "camel trench coat"
     Then the progress indicator reads "1 of 5 items"
-    When she photographs and confirms her white silk blouse
+    When she photographs and confirms her "white silk blouse"
     Then the progress indicator reads "2 of 5 items"
-    When she photographs and confirms her dark slim trousers
+    When she photographs and confirms her "dark slim trousers"
     Then the progress indicator reads "3 of 5 items"
-    When she photographs and confirms her ankle boots
+    When she photographs and confirms her "ankle boots"
     Then the progress indicator reads "4 of 5 items"
-    When she photographs and confirms her camel knit turtleneck
+    When she photographs and confirms her "camel knit turtleneck"
     Then a celebration animation plays
     And within 2 seconds she sees her first outfit suggestion
     And the outfit contains at least 3 items from her wardrobe

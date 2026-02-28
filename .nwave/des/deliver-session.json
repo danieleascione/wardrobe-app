@@ -1,0 +1,8 @@
+{
+  "project_id": "pocketwardrobe-mvp",
+  "started_at": "2026-02-28T00:00:00Z",
+  "paradigm": "oop",
+  "crafter": "nw-software-crafter",
+  "mutation_strategy": "per-feature",
+  "rigor": "standard"
+}
