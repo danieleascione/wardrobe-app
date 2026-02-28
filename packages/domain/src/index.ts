@@ -1,3 +1,7 @@
+// Domain errors
+export { AIProcessingError } from './errors/AIProcessingError.js';
+export type { AIProcessingErrorCode } from './errors/AIProcessingError.js';
+
 // Domain entities
 export { Item } from './entities/Item.js';
 export type { ItemProps, ItemStatus } from './entities/Item.js';
