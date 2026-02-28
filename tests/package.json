@@ -5,6 +5,10 @@
   "scripts": {
     "test:smoke": "node run-cucumber.cjs --profile smoke",
     "test:walking-skeleton": "node run-cucumber.cjs --tags @walking_skeleton",
+    "test:milestone-1": "node run-cucumber.cjs --profile milestone --tags \"@smoke and @milestone_1\"",
+    "test:milestone-2": "node run-cucumber.cjs --profile milestone --tags \"@smoke and @milestone_2\"",
+    "test:milestone-3": "node run-cucumber.cjs --profile milestone --tags \"@smoke and @milestone_3\"",
+    "test:milestone": "node run-cucumber.cjs --profile milestone",
     "test:all": "node run-cucumber.cjs"
   },
   "dependencies": {

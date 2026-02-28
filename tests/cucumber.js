@@ -30,4 +30,18 @@ module.exports = {
     format: ['progress-bar'],
     formatOptions: { snippetInterface: 'async-await' },
   },
+  milestone: {
+    paths: ['features/mvp/acceptance/milestone-*.feature'],
+    require: [
+      'features/mvp/step-definitions/world.ts',
+      'features/mvp/step-definitions/hooks.ts',
+      'features/mvp/step-definitions/walking-skeleton.steps.ts',
+      'features/mvp/step-definitions/milestone-1.steps.ts',
+      'features/mvp/step-definitions/milestone-2.steps.ts',
+      'features/mvp/step-definitions/milestone-3.steps.ts',
+    ],
+    tags: '@smoke',
+    format: ['progress-bar'],
+    formatOptions: { snippetInterface: 'async-await' },
+  },
 };
