@@ -30,7 +30,9 @@ export class InMemoryConsentLogAdapter implements ConsentLogPort {
   }
 
   /** Test-only query — exposes the full event log for assertion. */
-  getConsentEvents(): ReadonlyArray<ConsentEvent> {
+  getConsentEvents(): ConsentEvent[] {
+    // Return a mutable array copy to satisfy test helper typings while
+    // preserving encapsulation of internal storage.
     return [...this.events];
   }
 

@@ -121,7 +121,17 @@ export class SuggestOutfitUseCase {
     finalItemIds: string[],
   ): Promise<WearEvent> {
     const now = new Date();
-    const wornDate = now.toISOString().slice(0, 10);
+
+    // Align worn_date with the outfit's suggestion_date (test expectation BR-05)
+    // Fall back to current date if the outfit cannot be located for any reason.
+    let wornDate: string;
+    try {
+      const outfits = await this.outfitRepo.findByUserId(userId);
+      const outfit = outfits.find((o) => o.outfit_id === outfitId);
+      wornDate = outfit?.suggestion_date ?? now.toISOString().slice(0, 10);
+    } catch {
+      wornDate = now.toISOString().slice(0, 10);
+    }
 
     const wearEvent = new WearEvent({
       wear_event_id: generateWearEventId(),

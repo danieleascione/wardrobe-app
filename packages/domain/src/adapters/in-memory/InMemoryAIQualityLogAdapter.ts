@@ -25,7 +25,9 @@ export class InMemoryAIQualityLogAdapter implements AIQualityLogPort {
   }
 
   /** Test-only query — exposes recorded corrections for assertion. */
-  getCorrections(): ReadonlyArray<CorrectionRecord> {
+  getCorrections(): CorrectionRecord[] {
+    // Return a mutable array copy to align with test helper expectations
+    // while keeping internal array encapsulated.
     return [...this.corrections];
   }
 
