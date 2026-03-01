@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { Outfit } from '../entities/Outfit.js';
 import { WearEvent } from '../entities/WearEvent.js';
 import type { ItemRepositoryPort } from '../ports/outbound/ItemRepositoryPort.js';
@@ -15,11 +16,11 @@ const LARGE_WARDROBE_THRESHOLD = 15;
 const MIN_OUTFIT_ITEMS = 3;
 
 function generateId(): string {
-  return `outfit-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  return randomUUID();
 }
 
 function generateWearEventId(): string {
-  return `wear-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  return randomUUID();
 }
 
 /**

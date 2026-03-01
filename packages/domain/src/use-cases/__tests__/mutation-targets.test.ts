@@ -7,7 +7,7 @@
  * Coverage targets by file:
  *  - CalibrateStyleUseCase: updateStyleProfile (NoCoverage), completeCalibration ID reuse
  *  - DigitizeItemUseCase: deleteItem (NoCoverage), confirmItem/correctMetadata error paths
- *  - SuggestOutfitUseCase: items<3 returns null, ID prefixes, rotation windows, dateToSeason
+ *  - SuggestOutfitUseCase: items<3 returns null, ID UUID format, rotation windows, dateToSeason
  *  - StyleProfile.effectivePreferences(): calibration_completed=true branch
  *  - WearEvent: empty items_worn guard
  */
@@ -384,12 +384,14 @@ describe('CalibrateStyleUseCase.completeCalibration — existing profile', () =>
 // ════════════════════════════════════════════════════════════════════════════
 
 describe('CalibrateStyleUseCase.skipCalibration — ID format', () => {
-  it('generates a style_profile_id starting with "sp-"', async () => {
+  it('generates a style_profile_id that is a valid UUID', async () => {
     const useCase = new CalibrateStyleUseCase(new InMemoryStyleProfileRepo());
 
     const profile = await useCase.skipCalibration('user-1');
 
-    expect(profile.style_profile_id).toMatch(/^sp-/);
+    expect(profile.style_profile_id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+    );
   });
 });
 
@@ -485,10 +487,12 @@ describe('DigitizeItemUseCase.initiateDigitization — property assertions', () 
     );
   });
 
-  it('generates an item_id starting with "item-"', async () => {
+  it('generates an item_id that is a valid UUID', async () => {
     const item = await useCase.initiateDigitization('user-1', 'wardrobe-1', Buffer.from('x'));
 
-    expect(item.item_id).toMatch(/^item-/);
+    expect(item.item_id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+    );
   });
 
   it('sets manual_classification to false (AI-classified)', async () => {
@@ -555,7 +559,7 @@ describe('SuggestOutfitUseCase — generated ID prefixes', () => {
     wearEventRepo = new InMemoryWearEventRepo();
   });
 
-  it('getDailyOutfit generates an outfit_id starting with "outfit-"', async () => {
+  it('getDailyOutfit generates a valid UUID outfit_id', async () => {
     const items = makeActiveItems(5);
     const useCase = new SuggestOutfitUseCase(
       new InMemoryItemRepo(items),
@@ -568,10 +572,12 @@ describe('SuggestOutfitUseCase — generated ID prefixes', () => {
     const result = await useCase.getDailyOutfit('user-1', 'wardrobe-1', 'casual', TODAY);
 
     expect(result).not.toBeNull();
-    expect(result!.outfit_id).toMatch(/^outfit-/);
+    expect(result!.outfit_id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+    );
   });
 
-  it('acceptOutfit generates a wear_event_id starting with "wear-"', async () => {
+  it('acceptOutfit generates a valid UUID wear_event_id', async () => {
     const outfit = makeOutfit({ outfit_id: 'outfit-accept', suggestion_date: TODAY });
     outfitRepo = new InMemoryOutfitRepo([outfit]);
 
@@ -585,7 +591,9 @@ describe('SuggestOutfitUseCase — generated ID prefixes', () => {
 
     const wearEvent = await useCase.acceptOutfit('user-1', 'outfit-accept', ['item-1', 'item-2', 'item-3']);
 
-    expect(wearEvent.wear_event_id).toMatch(/^wear-/);
+    expect(wearEvent.wear_event_id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+    );
   });
 });
 
@@ -633,7 +641,9 @@ describe('SuggestOutfitUseCase.getDailyOutfit — rotation window boundary', () 
     // With 14 items, the outfit 4 days ago is outside the 3-day window.
     // So the new outfit CAN be the same combo as oldOutfit.
     // We verify the outfit_id is new (not old) — a new outfit was saved.
-    expect(result!.outfit_id).toMatch(/^outfit-/);
+    expect(result!.outfit_id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+    );
     expect(result!.outfit_id).not.toBe('outfit-old');
   });
 

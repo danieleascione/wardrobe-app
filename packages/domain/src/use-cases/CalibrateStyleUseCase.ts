@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import {
   StyleProfile,
   DEFAULT_STYLE_ARCHETYPE,
@@ -8,7 +9,7 @@ import type { StyleArchetype, StylePalette } from '../entities/StyleProfile.js';
 import type { StyleProfileRepositoryPort } from '../ports/outbound/StyleProfileRepositoryPort.js';
 
 function generateId(): string {
-  return `sp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  return randomUUID();
 }
 
 export class CalibrateStyleUseCase {

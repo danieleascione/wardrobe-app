@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { Item } from '../entities/Item.js';
 import { AIClassification } from '../value-objects/index.js';
 import type { ItemRepositoryPort } from '../ports/outbound/ItemRepositoryPort.js';
@@ -8,7 +9,7 @@ import type { ConsentLogPort } from '../ports/outbound/ConsentLogPort.js';
 import type { AIQualityLogPort } from '../ports/outbound/AIQualityLogPort.js';
 
 function generateId(): string {
-  return `item-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  return randomUUID();
 }
 
 export class DigitizeItemUseCase {
