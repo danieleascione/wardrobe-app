@@ -1,0 +1,357 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Description: >
+  PocketWardrobe — Serverless backend.
+  Lambda functions (Node.js 22 LTS) fronted by an HTTP API Gateway.
+  Garment photos stored in S3 and served via CloudFront.
+
+# =============================================================================
+# Parameters
+# =============================================================================
+
+Parameters:
+  Stage:
+    Type: String
+    Default: prod
+    AllowedValues: [prod, staging]
+    Description: Deployment stage
+
+  SupabaseUrl:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /pocketwardrobe/prod/SUPABASE_URL
+    Description: Supabase project URL (SSM SecureString)
+
+  SupabaseServiceRoleKey:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /pocketwardrobe/prod/SUPABASE_SERVICE_ROLE_KEY
+    Description: Supabase service role key (SSM SecureString)
+
+  NanaBananaApiKey:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /pocketwardrobe/prod/NANO_BANANA_API_KEY
+    Description: Nano Banana API key (SSM SecureString)
+
+  NanaBananaApiUrl:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /pocketwardrobe/prod/NANO_BANANA_API_URL
+    Description: Nano Banana API base URL (SSM SecureString)
+
+# =============================================================================
+# Globals — shared config for all Lambda functions
+# =============================================================================
+
+Globals:
+  Function:
+    Runtime: nodejs22.x
+    Architectures: [arm64]          # Graviton2 — 20% cheaper, faster cold start
+    MemorySize: 256
+    Timeout: 10
+    Environment:
+      Variables:
+        NODE_ENV: production
+        AWS_ACCOUNT_ID: !Ref AWS::AccountId
+        SUPABASE_URL: !Ref SupabaseUrl
+        SUPABASE_SERVICE_ROLE_KEY: !Ref SupabaseServiceRoleKey
+        NANO_BANANA_API_KEY: !Ref NanaBananaApiKey
+        NANO_BANANA_API_URL: !Ref NanaBananaApiUrl
+        S3_BUCKET_NAME: !Ref GarmentPhotosBucket
+        AWS_REGION_NAME: !Ref AWS::Region
+        OPEN_METEO_CACHE_TTL_HOURS: '24'
+    # Log retention — reduce CloudWatch storage cost
+    LoggingConfig:
+      LogFormat: JSON
+      ApplicationLogLevel: INFO
+      SystemLogLevel: WARN
+
+# =============================================================================
+# Resources
+# =============================================================================
+
+Resources:
+
+  # ---------------------------------------------------------------------------
+  # HTTP API Gateway
+  # HTTP API is ~70% cheaper than REST API and sufficient for this use case.
+  # JWT authorizer validates Supabase-issued tokens (RS256).
+  # ---------------------------------------------------------------------------
+
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: !Ref Stage
+      CorsConfiguration:
+        AllowOrigins:
+          - '*'
+        AllowHeaders:
+          - Content-Type
+          - Authorization
+        AllowMethods:
+          - GET
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+          - OPTIONS
+      Auth:
+        DefaultAuthorizer: SupabaseJwtAuthorizer
+        Authorizers:
+          SupabaseJwtAuthorizer:
+            IdentitySource: $request.header.Authorization
+            JwtConfiguration:
+              # Supabase issues RS256 JWTs; audience and issuer match your project
+              # Update these values after creating your Supabase project:
+              #   Audience: your Supabase project ref (e.g. xyzabcdef)
+              #   Issuer:   https://<project-ref>.supabase.co/auth/v1
+              Audience:
+                - REPLACE_WITH_SUPABASE_PROJECT_REF
+              Issuer: REPLACE_WITH_SUPABASE_JWT_ISSUER
+
+  # ---------------------------------------------------------------------------
+  # Style Calibration function
+  # Handles: POST /style-profile/calibrate, POST /style-profile/skip
+  # ---------------------------------------------------------------------------
+
+  StyleCalibrationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub pocketwardrobe-style-calibration-${Stage}
+      Handler: dist/handlers/style-calibration.handler
+      Description: Style profile calibration and defaults
+      Events:
+        Calibrate:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /style-profile/calibrate
+            Method: POST
+        Skip:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /style-profile/skip
+            Method: POST
+
+  # ---------------------------------------------------------------------------
+  # Item Digitization function
+  # Handles: POST /items/digitize, POST /items/confirm, POST /items/correct,
+  #          DELETE /items/{itemId}
+  # Higher memory for AI processing path.
+  # ---------------------------------------------------------------------------
+
+  ItemDigitizationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub pocketwardrobe-item-digitization-${Stage}
+      Handler: dist/handlers/item-digitization.handler
+      Description: Item digitization — photo submission and AI classification
+      MemorySize: 512
+      Timeout: 30
+      # Provisioned concurrency keeps 2 warm instances for the primary user flow
+      # (capturing first garment). Eliminates cold start delay on first use.
+      # Comment out to reduce cost during early beta when traffic is minimal.
+      # ProvisionedConcurrencyConfig:
+      #   ProvisionedConcurrentExecutions: 2
+      Policies:
+        - S3WritePolicy:
+            BucketName: !Ref GarmentPhotosBucket
+        - S3ReadPolicy:
+            BucketName: !Ref GarmentPhotosBucket
+      Events:
+        Digitize:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /items/digitize
+            Method: POST
+        Confirm:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /items/confirm
+            Method: POST
+        Correct:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /items/correct
+            Method: POST
+        DeleteItem:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /items/{itemId}
+            Method: DELETE
+
+  # ---------------------------------------------------------------------------
+  # Outfit Suggestion function
+  # Handles: GET /outfits/daily, POST /outfits/accept, POST /outfits/swap
+  # ---------------------------------------------------------------------------
+
+  OutfitSuggestionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub pocketwardrobe-outfit-suggestion-${Stage}
+      Handler: dist/handlers/outfit-suggestion.handler
+      Description: Daily outfit generation, acceptance, and item swap
+      Events:
+        DailyOutfit:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /outfits/daily
+            Method: GET
+        AcceptOutfit:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /outfits/accept
+            Method: POST
+        SwapItem:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /outfits/swap
+            Method: POST
+
+  # ---------------------------------------------------------------------------
+  # Scheduled Outfit Generator (EventBridge)
+  # Pre-computes outfit cards at 06:30 UTC daily.
+  # Not exposed via API Gateway — triggered by EventBridge only.
+  # ---------------------------------------------------------------------------
+
+  ScheduledOutfitGeneratorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub pocketwardrobe-scheduled-outfit-${Stage}
+      Handler: dist/handlers/scheduled-outfit.handler
+      Description: Pre-generates morning outfit cards for all active users
+      Timeout: 300
+      MemorySize: 512
+      # No HTTP API event — EventBridge only
+      Events:
+        MorningSchedule:
+          Type: Schedule
+          Properties:
+            Schedule: cron(30 6 * * ? *)   # 06:30 UTC daily
+            Description: Pre-generate outfit cards before 07:00 push notification
+            Enabled: true
+
+  # ---------------------------------------------------------------------------
+  # S3 Bucket — garment photo storage
+  # Originals in Standard-IA; thumbnails served via CloudFront.
+  # EU region enforced by stack deployment region (eu-west-1).
+  # ---------------------------------------------------------------------------
+
+  GarmentPhotosBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain        # Never delete photos on stack removal
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub pocketwardrobe-garments-${Stage}-${AWS::AccountId}
+      VersioningConfiguration:
+        Status: Enabled           # Enables point-in-time recovery
+      LifecycleConfiguration:
+        Rules:
+          - Id: MoveOriginalsToIA
+            Status: Enabled
+            Prefix: originals/
+            Transitions:
+              - TransitionInDays: 30
+                StorageClass: STANDARD_IA
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ['*']
+            AllowedMethods: [GET, PUT]
+            AllowedOrigins: ['*']
+            MaxAge: 3600
+
+  # Allow CloudFront to read from S3 (Origin Access Control)
+  GarmentPhotosBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref GarmentPhotosBucket
+      PolicyDocument:
+        Statement:
+          - Sid: AllowCloudFrontServicePrincipal
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub ${GarmentPhotosBucket.Arn}/thumbnails/*
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}
+
+  # ---------------------------------------------------------------------------
+  # CloudFront Distribution — thumbnail CDN
+  # Serves processed thumbnails from S3 with long cache TTL.
+  # Comment out CloudFrontDistribution and GarmentPhotosBucketPolicy CloudFront
+  # block if you want to defer CDN setup and serve directly from S3 URLs.
+  # ---------------------------------------------------------------------------
+
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub PocketWardrobe garment thumbnails (${Stage})
+        HttpVersion: http2
+        PriceClass: PriceClass_100   # EU + NA only — cheapest
+        Origins:
+          - Id: S3GarmentPhotos
+            DomainName: !GetAtt GarmentPhotosBucket.RegionalDomainName
+            OriginPath: /thumbnails
+            S3OriginConfig:
+              OriginAccessIdentity: ''  # Using OAC, not OAI
+            OriginAccessControlId: !GetAtt CloudFrontOAC.Id
+        DefaultCacheBehavior:
+          TargetOriginId: S3GarmentPhotos
+          ViewerProtocolPolicy: redirect-to-https
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6  # Managed: CachingOptimized
+          AllowedMethods: [GET, HEAD]
+          CachedMethods: [GET, HEAD]
+          Compress: true
+
+  CloudFrontOAC:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub pocketwardrobe-oac-${Stage}
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+# =============================================================================
+# Outputs
+# =============================================================================
+
+Outputs:
+  ApiEndpoint:
+    Description: HTTP API Gateway endpoint URL
+    Value: !Sub https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/${Stage}
+
+  GarmentPhotosBucketName:
+    Description: S3 bucket for garment photo storage
+    Value: !Ref GarmentPhotosBucket
+
+  CloudFrontDomain:
+    Description: CloudFront distribution domain for thumbnail delivery
+    Value: !GetAtt CloudFrontDistribution.DomainName
+
+  StyleCalibrationFunctionArn:
+    Description: Style Calibration Lambda ARN
+    Value: !GetAtt StyleCalibrationFunction.Arn
+
+  ItemDigitizationFunctionArn:
+    Description: Item Digitization Lambda ARN
+    Value: !GetAtt ItemDigitizationFunction.Arn
+
+  OutfitSuggestionFunctionArn:
+    Description: Outfit Suggestion Lambda ARN
+    Value: !GetAtt OutfitSuggestionFunction.Arn

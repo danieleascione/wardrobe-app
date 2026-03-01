@@ -1,0 +1,177 @@
+# =============================================================================
+# PocketWardrobe — CI Pipeline
+#
+# Branching strategy: Trunk-Based Development
+# Triggers: push to main + pull requests to main
+#
+# Jobs run in parallel where possible; all must pass before merge.
+# Fail fast is enabled — first failure stops all sibling jobs.
+#
+# Pipeline stages:
+#   1. lint-and-type-check  — TSC + type safety gate
+#   2. unit-tests           — domain unit tests (in-memory, no infra)
+#   3. acceptance-tests     — Cucumber smoke suite
+#   4. build                — compile TypeScript, verify build artefacts
+# =============================================================================
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel in-progress runs for the same branch/PR when a new push arrives.
+# Prevents queuing of redundant CI runs on fast-moving branches.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Pin Node version to match Lambda runtime and engine requirement
+  NODE_VERSION: '22'
+  # pnpm version — keep in sync with packageManager in root package.json
+  PNPM_VERSION: '10'
+
+jobs:
+
+  # ---------------------------------------------------------------------------
+  # Job 1: Lint and type check
+  # Fastest gate — catches type errors and formatting issues before running tests.
+  # ---------------------------------------------------------------------------
+
+  lint-and-type-check:
+    name: Lint and type check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check — all packages
+        run: pnpm typecheck
+
+  # ---------------------------------------------------------------------------
+  # Job 2: Domain unit tests
+  # Pure in-memory tests — no database, no network, no external services.
+  # Must complete in under 5 minutes.
+  # ---------------------------------------------------------------------------
+
+  unit-tests:
+    name: Domain unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run domain unit tests
+        run: pnpm --filter @pocketwardrobe/domain test
+
+      - name: Run functions unit tests
+        run: pnpm --filter @pocketwardrobe/functions test
+        # Functions integration tests are skipped automatically when
+        # SUPABASE_LOCAL_URL is not set. Only in-memory tests run here.
+
+  # ---------------------------------------------------------------------------
+  # Job 3: Acceptance tests (Cucumber smoke suite)
+  # Runs the @smoke tagged Cucumber scenarios against the in-process container.
+  # No running server required — the test suite wires the DI container directly.
+  # ---------------------------------------------------------------------------
+
+  acceptance-tests:
+    name: Acceptance tests (smoke)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [lint-and-type-check]   # Type check must pass first
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run acceptance tests (smoke profile)
+        run: pnpm --filter @pocketwardrobe/tests test:smoke
+
+  # ---------------------------------------------------------------------------
+  # Job 4: Build
+  # Compiles TypeScript for all packages and verifies the build artefacts
+  # are clean. This is the final gate before a PR can merge.
+  # ---------------------------------------------------------------------------
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [unit-tests, acceptance-tests]   # Tests must pass before build gate
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build all packages
+        run: pnpm build
+
+      - name: Verify build artefacts exist
+        run: |
+          test -d packages/domain/dist || (echo "domain/dist missing" && exit 1)
+          test -d packages/functions/dist || (echo "functions/dist missing" && exit 1)
+          echo "Build artefacts verified."
