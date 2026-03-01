@@ -39,10 +39,24 @@
     },
     {
       "sid": "01-02",
+      "p": "PREPARE",
+      "s": "EXECUTED",
+      "d": "PASS",
+      "t": "2026-02-28T18:18:00Z"
+    },
+    {
+      "sid": "01-02",
       "p": "RED_ACCEPTANCE",
       "s": "EXECUTED",
       "d": "PASS",
       "t": "2026-02-28T18:19:08Z"
+    },
+    {
+      "sid": "01-02",
+      "p": "RED_UNIT",
+      "s": "EXECUTED",
+      "d": "PASS",
+      "t": "2026-02-28T18:19:09Z"
     },
     {
       "sid": "01-02",
@@ -162,6 +176,34 @@
       "s": "EXECUTED",
       "d": "PASS",
       "t": "2026-02-28T22:46:44Z"
+    },
+    {
+      "sid": "02-02",
+      "p": "PREPARE",
+      "s": "EXECUTED",
+      "d": "PASS",
+      "t": "2026-02-28T22:50:00Z"
+    },
+    {
+      "sid": "02-02",
+      "p": "RED_ACCEPTANCE",
+      "s": "EXECUTED",
+      "d": "PASS",
+      "t": "2026-02-28T22:51:00Z"
+    },
+    {
+      "sid": "02-02",
+      "p": "RED_UNIT",
+      "s": "EXECUTED",
+      "d": "PASS",
+      "t": "2026-02-28T22:52:00Z"
+    },
+    {
+      "sid": "02-02",
+      "p": "GREEN",
+      "s": "EXECUTED",
+      "d": "PASS",
+      "t": "2026-02-28T22:55:00Z"
     },
     {
       "sid": "02-02",
