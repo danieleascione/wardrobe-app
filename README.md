@@ -10,16 +10,83 @@ PocketWardrobe is an AI-powered mobile wardrobe management app. Users digitize p
 |------|---------|---------|
 | Node.js | 22 LTS | https://nodejs.org or `nvm install 22` |
 | pnpm | 8+ | `npm i -g pnpm` |
-| Supabase CLI | latest | https://supabase.com/docs/guides/cli |
+| Colima (macOS) | latest | `brew install colima` — lightweight Docker runtime, no Docker Desktop licence required |
+| Supabase CLI | latest | `brew install supabase/tap/supabase` |
 | AWS CLI | v2 | https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html |
 | AWS SAM CLI | latest | https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html |
 | Expo CLI | latest | `npm i -g expo-cli` (mobile only — separate repo) |
+
+> **macOS Docker runtime**: Docker Desktop is not required. [Colima](https://github.com/abiosoft/colima) is a free, lightweight alternative. Start it with `colima start` before running Supabase.
 
 ---
 
 ## Local Development
 
-Local development runs the entire backend on your machine: Supabase (PostgreSQL + Auth) via Docker, and an Express HTTP server that wraps the Lambda handlers identically to how API Gateway invokes them in production. The mobile app connects to this local server.
+There are two local dev modes:
+
+| Mode | When to use | External services needed |
+|------|------------|--------------------------|
+| **Test profile** (`TEST_PROFILE=true`) | Quick iteration, no infrastructure setup | None |
+| **Full profile** (default) | Integration testing against real Supabase | Colima + Supabase CLI |
+
+### Quick start — test profile (no Supabase required)
+
+The test profile uses fully in-memory adapters. No Docker, no database, no AI keys.
+
+```bash
+git clone <repo-url>
+cd wardrobe-app
+pnpm install
+LOCAL=true TEST_PROFILE=true pnpm --filter @pocketwardrobe/functions dev
+```
+
+The server starts on `http://localhost:3000`. Test the full flow:
+
+```bash
+# 1. Grant photo consent (test profile only)
+curl -X POST http://localhost:3000/consent/grant \
+  -H 'Content-Type: application/json' \
+  -d '{"userId":"u1"}'
+
+# 2. Create a wardrobe (test profile only)
+curl -X POST http://localhost:3000/wardrobe \
+  -H 'Content-Type: application/json' \
+  -d '{"userId":"u1","wardrobeId":"w1"}'
+
+# 3. Calibrate style
+curl -X POST http://localhost:3000/style-profile/calibrate \
+  -H 'Content-Type: application/json' \
+  -d '{"userId":"u1","archetype":"classic","occasions":["work","casual"],"palette":"neutral"}'
+
+# 4. Digitize 5 items (tiny PNG, base64-encoded)
+for i in 1 2 3 4 5; do
+  curl -s -X POST http://localhost:3000/items/digitize \
+    -H 'Content-Type: application/json' \
+    -d '{"userId":"u1","wardrobeId":"w1","photoBase64":"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI6QAAAABJRU5ErkJggg=="}' \
+    | python3 -c "import sys,json; print(json.load(sys.stdin)['item_id'])"
+done
+
+# 5. Confirm each item (copy IDs from step 4)
+curl -X POST http://localhost:3000/items/confirm \
+  -H 'Content-Type: application/json' \
+  -d '{"userId":"u1","itemId":"<item_id>"}'
+
+# 6. Get daily outfit (after confirming 5 items)
+curl "http://localhost:3000/outfits/daily?userId=u1&wardrobeId=w1&occasion=casual&date=$(date +%Y-%m-%d)"
+
+# 7. Accept outfit
+curl -X POST http://localhost:3000/outfits/accept \
+  -H 'Content-Type: application/json' \
+  -d '{"userId":"u1","outfitId":"<outfit_id>","finalItemIds":["<item1>","<item2>","<item3>"]}'
+```
+
+> **Note**: `/consent/grant` and `/wardrobe` are local dev helpers that simulate GDPR consent logging and the PostgreSQL DB trigger (which maintains `wardrobe.item_count` in production). They are not available in the production container.
+
+---
+
+### Full local dev — with Supabase (production-like)
+
+Local development runs the entire backend on your machine: Supabase (PostgreSQL + Auth) via Colima/Docker, and an Express HTTP server that wraps the Lambda handlers identically to how API Gateway invokes them in production. The mobile app connects to this local server.
 
 ### Step 1 — Clone and install
 
@@ -29,12 +96,13 @@ cd wardrobe-app
 pnpm install
 ```
 
-### Step 2 — Start local Supabase
+### Step 2 — Start local Supabase (requires Colima)
 
-Supabase CLI uses Docker to spin up PostgreSQL, Auth, and the REST API locally.
+Supabase CLI uses Docker to spin up PostgreSQL, Auth, and the REST API locally. On macOS, start Colima first:
 
 ```bash
-supabase start
+colima start          # start the Docker runtime (macOS only)
+supabase start        # pull images and start Supabase stack
 ```
 
 On first run this pulls Docker images (~2 min). On success it prints your local credentials:

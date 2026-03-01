@@ -24,6 +24,7 @@
 
 import express, { Request, Response, NextFunction } from 'express';
 import { createContainer } from './container.js';
+import { Wardrobe } from '../../domain/src/entities/Wardrobe.js';
 
 // ---------------------------------------------------------------------------
 // Guard: only run in local mode
@@ -38,11 +39,14 @@ if (!process.env['LOCAL'] && process.env['NODE_ENV'] !== 'development') {
 }
 
 // ---------------------------------------------------------------------------
-// Container — production profile wires Supabase + Nano Banana adapters.
-// In local dev, SUPABASE_URL points to the local Supabase instance.
+// Container profile selection:
+//   TEST_PROFILE=true  → in-memory adapters (no Supabase/AWS needed)
+//   default            → production profile (needs SUPABASE_URL etc.)
 // ---------------------------------------------------------------------------
 
-const container = createContainer('production');
+const profile = process.env['TEST_PROFILE'] === 'true' ? 'test' : 'production';
+console.log(`[local-server] Using container profile: ${profile}`);
+const container = createContainer(profile);
 
 // ---------------------------------------------------------------------------
 // Express application
@@ -65,11 +69,51 @@ app.options('*', (_req: Request, res: Response) => {
 });
 
 // ---------------------------------------------------------------------------
-// Health check
+// Health check + consent (test profile only)
+// GET  /health            — liveness probe
+// POST /consent/grant     — grant photo consent for a user (TEST_PROFILE only)
 // ---------------------------------------------------------------------------
 
 app.get('/health', (_req: Request, res: Response) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// ---------------------------------------------------------------------------
+// Consent routes (test profile only — production uses Supabase ConsentLog)
+// POST /consent/grant  — grant photo storage consent for a user
+// ---------------------------------------------------------------------------
+
+app.post('/consent/grant', async (req: Request, res: Response) => {
+  if (!container.consentLog) {
+    res.status(503).json({ error: 'Consent endpoint only available in test profile (TEST_PROFILE=true)' });
+    return;
+  }
+  const { userId } = req.body as { userId: string };
+  await container.consentLog.logConsent(userId, true);
+  res.status(200).json({ granted: true, userId });
+});
+
+// ---------------------------------------------------------------------------
+// Wardrobe routes (test profile only — production uses Supabase)
+// POST /wardrobe  — create a wardrobe (seeds the in-memory store)
+// ---------------------------------------------------------------------------
+
+app.post('/wardrobe', async (req: Request, res: Response) => {
+  if (!container.wardrobeRepo) {
+    res.status(503).json({ error: 'Wardrobe endpoint only available in test profile (TEST_PROFILE=true)' });
+    return;
+  }
+  const { userId, wardrobeId } = req.body as { userId: string; wardrobeId: string };
+  const wardrobe = new Wardrobe({
+    wardrobe_id: wardrobeId,
+    user_id: userId,
+    item_count: 0,
+    first_unlock_achieved: false,
+    created_at: new Date(),
+    updated_at: new Date(),
+  });
+  await container.wardrobeRepo.save(wardrobe);
+  res.status(201).json({ wardrobe_id: wardrobeId, user_id: userId, item_count: 0 });
 });
 
 // ---------------------------------------------------------------------------
@@ -151,6 +195,13 @@ app.post('/items/confirm', async (req: Request, res: Response) => {
     };
 
     const item = await container.digitizeItemUseCase.confirmItem(userId, itemId);
+
+    // Simulate the PostgreSQL DB trigger that increments wardrobe.item_count
+    // when an item transitions to 'active'. In production this is a DB trigger;
+    // in test profile we replicate the behaviour here.
+    if (container.wardrobeRepo) {
+      await container.wardrobeRepo.updateItemCount(item.wardrobe_id, 1);
+    }
 
     res.status(201).json(item);
   } catch (err) {

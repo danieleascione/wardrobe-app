@@ -46,6 +46,19 @@ export interface AppContainer {
   readonly calibrateStyleUseCase: CalibrateStyleUseCase;
   readonly digitizeItemUseCase: DigitizeItemUseCase;
   readonly suggestOutfitUseCase: SuggestOutfitUseCase;
+  /**
+   * Exposed on the test container only. Allows callers (e.g. the local
+   * dev server) to grant photo storage consent for a user on demand.
+   * Undefined in the production container.
+   */
+  readonly consentLog?: InMemoryConsentLogAdapter;
+  /**
+   * Exposed on the test container only. Allows the local dev server to
+   * create wardrobes and simulate the DB trigger (updateItemCount) that
+   * increments item_count on item confirmation.
+   * Undefined in the production container.
+   */
+  readonly wardrobeRepo?: InMemoryWardrobeRepository;
 }
 
 /**
@@ -135,6 +148,12 @@ function createTestContainer(overrides: TestProfileOverrides): AppContainer {
       wearEventRepo,
       weatherService,
     ),
+
+    // Exposed so the local dev server can grant consent on behalf of test users.
+    consentLog,
+    // Exposed so the local dev server can create wardrobes and simulate the
+    // DB item_count trigger (production uses a PostgreSQL trigger).
+    wardrobeRepo,
   };
 }
 
